@@ -22,9 +22,12 @@
 #include "utils.h"
 
 #include <fstream>
+#include <functional>
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "json.h"
 
@@ -209,6 +212,7 @@ std::string AddonInfo::getAddonInfo(const std::string &fileName, const std::stri
     std::ifstream fin(fileName);
     if (!fin.is_open())
         return "Failed to open " + fileName;
+    jsonFile = Path::fromNativeSeparators(fileName);
     if (name.empty()) {
         name = Path::fromNativeSeparators(fileName);
         if (name.find('/') != std::string::npos)
@@ -217,4 +221,46 @@ std::string AddonInfo::getAddonInfo(const std::string &fileName, const std::stri
     picojson::value json;
     fin >> json;
     return parseAddonInfo(*this, json, fileName, exename);
+}
+
+static void hashFileContent(std::ostream& os, const std::string &path) {
+    std::ifstream in(path, std::ios::binary);
+    if (!in.is_open())
+        return;
+    std::ostringstream content;
+    content << in.rdbuf();
+    os << std::hash<std::string> {}(content.str()) << ';';
+}
+
+// split the args like the shell running the addon, a double quote starts or ends a quoted part and is removed
+static std::vector<std::string> splitArgs(const std::string &args) {
+    std::vector<std::string> ret(1);
+    bool quoted = false;
+    for (const char c : args) {
+        if (c == '\"')
+            quoted = !quoted;
+        else if (c == ' ' && !quoted)
+            ret.emplace_back();
+        else
+            ret.back() += c;
+    }
+    return ret;
+}
+
+void AddonInfo::initContentHash() {
+    std::ostringstream os;
+    if (!jsonFile.empty())
+        hashFileContent(os, jsonFile);
+    if (!scriptFile.empty())
+        hashFileContent(os, scriptFile);
+    if (!executable.empty())
+        hashFileContent(os, executable);
+    // files referenced in args, e.g. --rule-texts=FILE
+    for (const std::string &arg : splitArgs(args)) {
+        const std::string::size_type eq = arg.find('=');
+        const std::string path = (eq == std::string::npos) ? arg : arg.substr(eq + 1);
+        if (!path.empty() && Path::isFile(path))
+            hashFileContent(os, path);
+    }
+    contentHash = os.str();
 }
