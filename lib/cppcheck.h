@@ -29,6 +29,7 @@
 #include <list>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #ifdef HAVE_RULES
@@ -141,8 +142,8 @@ public:
      */
     bool analyseWholeProgram();
 
-    /** analyse whole program use .analyzeinfo files or ctuinfo string */
-    unsigned int analyseWholeProgram(const std::string &buildDir, const std::list<FileWithDetails> &files, const std::list<FileSettings>& fileSettings, const std::string& ctuInfo);
+    /** analyse whole program use .analyzeinfo files, or the ctu info of the addons reported without build dir (file0 and data) */
+    unsigned int analyseWholeProgram(const std::string &buildDir, const std::list<FileWithDetails> &files, const std::list<FileSettings>& fileSettings, const std::list<std::pair<std::string, std::string>>& ctuInfo);
 
 private:
     void purgedConfigurationMessage(const std::string &file, const std::string& configuration);
@@ -226,7 +227,7 @@ private:
     /**
      * Execute addons
      */
-    void executeAddonsWholeProgram(const std::list<FileWithDetails> &files, const std::list<FileSettings>& fileSettings, const std::string& ctuInfo);
+    void executeAddonsWholeProgram(const std::list<FileWithDetails> &files, const std::list<FileSettings>& fileSettings, const std::list<std::pair<std::string, std::string>>& ctuInfo);
 
 #ifdef HAVE_RULES
     /**
