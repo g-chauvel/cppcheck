@@ -189,7 +189,7 @@ def test_read_ctu_info_line(checker):
     assert checker.read_ctu_info_line('{"summary":"123","data":123}') is not None
 
 # the same name declared in two files, unused in a.c and used in b.c
-@pytest.mark.parametrize('summary, rule', [('MisraTypedefInfo', 203), ('MisraTagName', 204)])
+@pytest.mark.parametrize('summary, rule', [('MisraTypedefInfo', 203), ('MisraTagName', 204), ('MisraMacro', 205)])
 @pytest.mark.parametrize('used_first', [False, True])
 def test_ctu_unused_declaration(checker, tmp_path, summary, rule, used_first):
     unused = {'name': 'X', 'file': 'a.c', 'line': 1, 'column': 13, 'used': False}
