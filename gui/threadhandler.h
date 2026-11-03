@@ -30,6 +30,7 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <utility>
 
 #include <QDateTime>
 #include <QElapsedTimer>
@@ -305,7 +306,7 @@ protected:
      * @brief A whole program check is queued by check()
      */
     bool mAnalyseWholeProgram{};
-    std::string mCtuInfo;
+    std::list<std::pair<std::string, std::string>> mCtuInfo;
 
     QStringList mAddonsAndTools;
     QList<SuppressionList::Suppression> mSuppressionsUI;

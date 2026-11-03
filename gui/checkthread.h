@@ -29,6 +29,7 @@
 #include <list>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <QList>
@@ -73,7 +74,7 @@ public:
      * @param fileSettings  All files of the project
      * @param ctuInfo       Ctu info for addons
      */
-    void analyseWholeProgram(const std::list<FileWithDetails> &files, const std::list<FileSettings> &fileSettings, const std::string& ctuInfo);
+    void analyseWholeProgram(const std::list<FileWithDetails> &files, const std::list<FileSettings> &fileSettings, const std::list<std::pair<std::string, std::string>>& ctuInfo);
 
     void setAddonsAndTools(const QStringList &addonsAndTools) {
         mAddonsAndTools = addonsAndTools;
@@ -156,7 +157,7 @@ private:
     std::list<FileWithDetails> mFiles;
     std::list<FileSettings> mFileSettings;
     bool mAnalyseWholeProgram{};
-    std::string mCtuInfo;
+    std::list<std::pair<std::string, std::string>> mCtuInfo;
     QStringList mAddonsAndTools;
     QStringList mClangIncludePaths;
     QList<SuppressionList::Suppression> mSuppressionsUi;

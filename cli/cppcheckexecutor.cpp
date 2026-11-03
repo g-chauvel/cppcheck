@@ -162,7 +162,7 @@ namespace {
             return !mCriticalErrors.empty();
         }
 
-        const std::string& getCtuInfo() const {
+        const std::list<std::pair<std::string, std::string>>& getCtuInfo() const {
             return mCtuInfo;
         }
 
@@ -229,9 +229,9 @@ namespace {
         std::string mCriticalErrors;
 
         /**
-         * CTU information
+         * CTU information of the addons (file0 and summary)
          */
-        std::string mCtuInfo;
+        std::list<std::pair<std::string, std::string>> mCtuInfo;
 
         /**
          * SARIF report generator
@@ -640,7 +640,7 @@ void StdLogger::reportErr(const ErrorMessage &msg)
     }
 
     if (msg.severity == Severity::internal && msg.id == "ctuinfo") {
-        mCtuInfo += msg.shortMessage() + "\n";
+        mCtuInfo.emplace_back(msg.file0, msg.shortMessage());
         return;
     }
 

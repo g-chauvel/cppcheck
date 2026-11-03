@@ -35,6 +35,8 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
+#include <fstream>
+#include <iterator>
 #include <list>
 #include <string>
 #include <unordered_set>
@@ -102,6 +104,7 @@ private:
         TEST_CASE(premiumResultsCache);
         TEST_CASE(purgedConfiguration);
         TEST_CASE(recheckInclude);
+        TEST_CASE(wholeProgramCtuInfoOrder);
     }
 
     void getErrorMessages() const {
@@ -755,6 +758,35 @@ private:
             ASSERT_EQUALS(1, includes.size());
             ASSERT_EQUALS("test1.h", *includes.begin());
         }
+    }
+
+    void wholeProgramCtuInfoOrder() const
+    {
+        std::list<FileWithDetails> files;
+        files.emplace_back("a.c", Standards::Language::C, 0);
+        files.emplace_back("b.c", Standards::Language::C, 0);
+        // with -j and no build dir the jobs report the ctu info of the addons in any order, use the reverse order
+        const std::list<std::pair<std::string, std::string>> ctuInfo{{"b.c", "b"}, {"a.c", "a"}};
+
+        Settings s;
+        s.addons.emplace("testaddon");
+        AddonInfo addonInfo;
+        addonInfo.name = "testaddon";
+        addonInfo.executable = "testaddon";
+        addonInfo.ctu = true;
+        s.addonInfos.push_back(std::move(addonInfo));
+        Suppressions supprs;
+        ErrorLogger2 errorLogger;
+        std::string readCtuInfo;
+        const CppCheck::ExecuteCmdFn f = [&readCtuInfo](const std::string& /*exe*/, const std::vector<std::string>& args, const std::string& /*redirect*/, std::string& /*output*/) -> int {
+            std::ifstream in(args.back());
+            readCtuInfo.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+            return EXIT_SUCCESS;
+        };
+        CppCheck cppcheck(s, supprs, errorLogger, nullptr, false, f);
+        cppcheck.analyseWholeProgram("", files, {}, ctuInfo);
+        // same order as with -j1
+        ASSERT_EQUALS("a\nb\n", readCtuInfo);
     }
 
     // TODO: test suppressions

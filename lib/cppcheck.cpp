@@ -1607,6 +1607,7 @@ void CppCheck::executeAddons(const std::vector<std::string>& files, const std::s
                     errmsg.severity = Severity::internal;
                     errmsg.id = "ctuinfo";
                     errmsg.setmsg(res.serialize());
+                    errmsg.file0 = file0;
                     mErrorLogger.reportErr(errmsg);
                 }
                 continue;
@@ -1681,7 +1682,36 @@ void CppCheck::executeAddons(const std::vector<std::string>& files, const std::s
     }
 }
 
-void CppCheck::executeAddonsWholeProgram(const std::list<FileWithDetails> &files, const std::list<FileSettings>& fileSettings, const std::string& ctuInfo)
+// the jobs report in any order, sort by the order of the files to get the same results as with -j1
+static std::vector<const std::pair<std::string, std::string>*> sortByFiles(const std::list<std::pair<std::string, std::string>>& reported,
+                                                                            const std::list<FileWithDetails> &files,
+                                                                            const std::list<FileSettings>& fileSettings)
+{
+    std::map<std::string, std::size_t> fileIndex;
+    std::size_t index = 0;
+    std::transform(files.cbegin(), files.cend(), std::inserter(fileIndex, fileIndex.end()), [&index](const FileWithDetails &f) {
+        return std::make_pair(f.spath(), index++);
+    });
+    std::transform(fileSettings.cbegin(), fileSettings.cend(), std::inserter(fileIndex, fileIndex.end()), [&index](const FileSettings &fs) {
+        return std::make_pair(fs.file.spath(), index++);
+    });
+    using Reported = std::pair<std::size_t, const std::pair<std::string, std::string>*>;
+    std::vector<Reported> sorted;
+    std::transform(reported.cbegin(), reported.cend(), std::back_inserter(sorted), [&fileIndex, index](const std::pair<std::string, std::string>& r) {
+        const auto it = fileIndex.find(r.first);
+        return Reported(it == fileIndex.cend() ? index : it->second, &r);
+    });
+    std::stable_sort(sorted.begin(), sorted.end(), [](const Reported& a, const Reported& b) {
+        return a.first < b.first;
+    });
+    std::vector<const std::pair<std::string, std::string>*> ret;
+    std::transform(sorted.cbegin(), sorted.cend(), std::back_inserter(ret), [](const Reported& r) {
+        return r.second;
+    });
+    return ret;
+}
+
+void CppCheck::executeAddonsWholeProgram(const std::list<FileWithDetails> &files, const std::list<FileSettings>& fileSettings, const std::list<std::pair<std::string, std::string>>& ctuInfo)
 {
     if (mSettings.addons.empty())
         return;
@@ -1691,7 +1721,8 @@ void CppCheck::executeAddonsWholeProgram(const std::list<FileWithDetails> &files
         FilesDeleter filesDeleter;
         filesDeleter.addFile(fileName);
         std::ofstream fout(fileName);
-        fout << ctuInfo;
+        for (const std::pair<std::string, std::string>* info : sortByFiles(ctuInfo, files, fileSettings))
+            fout << info->second << '\n';
         fout.close();
         executeAddons({std::move(fileName)}, "");
         return;
@@ -1897,7 +1928,7 @@ bool CppCheck::analyseWholeProgram()
     return errors && (mLogger->exitcode() > 0);
 }
 
-unsigned int CppCheck::analyseWholeProgram(const std::string &buildDir, const std::list<FileWithDetails> &files, const std::list<FileSettings>& fileSettings, const std::string& ctuInfo)
+unsigned int CppCheck::analyseWholeProgram(const std::string &buildDir, const std::list<FileWithDetails> &files, const std::list<FileSettings>& fileSettings, const std::list<std::pair<std::string, std::string>>& ctuInfo)
 {
     if (mSettings.checks.isEnabled(Checks::unusedFunction))
         CheckUnusedFunctions::analyseWholeProgram(mSettings, mErrorLogger, buildDir);

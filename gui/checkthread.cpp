@@ -118,7 +118,7 @@ void CheckThread::setSettings(const Settings &settings, std::shared_ptr<Suppress
     mSuppressions = std::move(supprs);
 }
 
-void CheckThread::analyseWholeProgram(const std::list<FileWithDetails> &files, const std::list<FileSettings> &fileSettings, const std::string& ctuInfo)
+void CheckThread::analyseWholeProgram(const std::list<FileWithDetails> &files, const std::list<FileSettings> &fileSettings, const std::list<std::pair<std::string, std::string>>& ctuInfo)
 {
     mFiles = files;
     mFileSettings = fileSettings;
@@ -135,7 +135,7 @@ void CheckThread::run()
 
     if (!mFiles.empty() || mAnalyseWholeProgram) {
         mAnalyseWholeProgram = false;
-        std::string ctuInfo;
+        std::list<std::pair<std::string, std::string>> ctuInfo;
         ctuInfo.swap(mCtuInfo);
         qDebug() << "Whole program analysis";
         cppcheck.analyseWholeProgram(mSettings.buildDir, mFiles, mFileSettings, ctuInfo);
