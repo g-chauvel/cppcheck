@@ -95,7 +95,6 @@ def test_suppress_inline():
     __test_suppress_inline(['-j1', '--no-cppcheck-build-dir'])
 
 
-@pytest.mark.xfail(strict=True)
 def test_suppress_inline_j():
     __test_suppress_inline(['-j2', '--no-cppcheck-build-dir'])
 
@@ -156,7 +155,6 @@ def test_suppress_inline_project(tmp_path):
     __test_suppress_inline_project(tmp_path, ['-j1', '--no-cppcheck-build-dir'])
 
 
-@pytest.mark.xfail(strict=True)
 def test_suppress_inline_project_j(tmp_path):
     __test_suppress_inline_project(tmp_path, ['-j2', '--no-cppcheck-build-dir'])
 
@@ -273,7 +271,6 @@ def test_checkclass():
     __test_checkclass(['-j1'])
 
 
-@pytest.mark.xfail(strict=True) # TODO: check error
 def test_checkclass_j():
     __test_checkclass(['-j2', '--no-cppcheck-build-dir'])
 
@@ -321,7 +318,6 @@ def test_checkclass_project(tmpdir):
     __test_checkclass_project(tmpdir, ['-j1'])
 
 
-@pytest.mark.xfail(strict=True) # TODO: check error
 def test_checkclass_project_j(tmpdir):
     __test_checkclass_project(tmpdir, ['-j2', '--no-cppcheck-build-dir'])
 
@@ -382,7 +378,6 @@ def test_nullpointer_file0():
     __test_nullpointer_file0(['-j1'])
 
 
-@pytest.mark.xfail(strict=True) # no CTU without builddir
 def test_nullpointer_file0_j():
     __test_nullpointer_file0(['-j2', '--no-cppcheck-build-dir'])
 

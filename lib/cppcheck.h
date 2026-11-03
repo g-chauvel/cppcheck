@@ -142,8 +142,8 @@ public:
      */
     bool analyseWholeProgram();
 
-    /** analyse whole program use .analyzeinfo files, or the ctu info of the addons reported without build dir (file0 and data) */
-    unsigned int analyseWholeProgram(const std::string &buildDir, const std::list<FileWithDetails> &files, const std::list<FileSettings>& fileSettings, const std::list<std::pair<std::string, std::string>>& ctuInfo);
+    /** analyse whole program use .analyzeinfo files, or the ctu info of the addons and the file info reported without build dir (file0 and data) */
+    unsigned int analyseWholeProgram(const std::string &buildDir, const std::list<FileWithDetails> &files, const std::list<FileSettings>& fileSettings, const std::list<std::pair<std::string, std::string>>& ctuInfo, const std::list<std::pair<std::string, std::string>>& fileInfo = {});
 
 private:
     void purgedConfigurationMessage(const std::string &file, const std::string& configuration);

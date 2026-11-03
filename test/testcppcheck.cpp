@@ -104,6 +104,8 @@ private:
         TEST_CASE(premiumResultsCache);
         TEST_CASE(purgedConfiguration);
         TEST_CASE(recheckInclude);
+        TEST_CASE(wholeProgramFileInfoOrder);
+        TEST_CASE(wholeProgramFileInfoOrderRelativePaths);
         TEST_CASE(wholeProgramCtuInfoOrder);
     }
 
@@ -758,6 +760,59 @@ private:
             ASSERT_EQUALS(1, includes.size());
             ASSERT_EQUALS("test1.h", *includes.begin());
         }
+    }
+
+    void wholeProgramFileInfoOrderInternal(bool relativePaths) const
+    {
+        const ScopedFile odr1("odr1.cpp", "struct S { int a; };\n", "odr1");
+        const ScopedFile odr2("odr2.cpp", "struct S { char a; };\n", "odr2");
+        std::list<FileWithDetails> files;
+        files.emplace_back(odr1.path(), Standards::Language::CPP, 0);
+        files.emplace_back(odr2.path(), Standards::Language::CPP, 0);
+
+        Settings s;
+        s.templateFormat = templateFormat;
+        s.jobs = 2;
+        if (relativePaths) {
+            s.relativePaths = true;
+            s.basePaths = {"odr1", "odr2"};
+        }
+        Suppressions supprs;
+
+        // with -j and no build dir the jobs report their file info in any order, use the reverse order
+        std::list<std::pair<std::string, std::string>> fileInfo;
+        {
+            ErrorLogger2 errorLogger;
+            CppCheck cppcheck(s, supprs, errorLogger, nullptr, false, {});
+            for (const FileWithDetails& f : files)
+                ASSERT_EQUALS(0, cppcheck.check(f));
+            for (const ErrorMessage& msg : errorLogger.errmsgs) {
+                if (msg.id == "fileinfo")
+                    fileInfo.emplace_front(msg.file0, msg.shortMessage());
+            }
+        }
+        ASSERT_EQUALS(2, fileInfo.size());
+
+        ErrorLogger2 errorLogger;
+        CppCheck cppcheck(s, supprs, errorLogger, nullptr, false, {});
+        cppcheck.analyseWholeProgram("", files, {}, {}, fileInfo);
+        // TODO: how to properly disable these warnings?
+        errorLogger.errmsgs.erase(std::remove_if(errorLogger.errmsgs.begin(), errorLogger.errmsgs.end(), [](const ErrorMessage& msg) {
+            return msg.id == "logChecker";
+        }), errorLogger.errmsgs.end());
+        // same order as with -j1
+        const std::string file = relativePaths ? "odr1.cpp" : Path::toNativeSeparators("odr1/odr1.cpp");
+        ASSERT_EQUALS(1, errorLogger.errmsgs.size());
+        ASSERT_EQUALS(file + ":1:1: error: The one definition rule is violated, different classes/structs have the same name 'S' [ctuOneDefinitionRuleViolation]",
+                      errorLogger.errmsgs.cbegin()->toString(false, templateFormat, ""));
+    }
+
+    void wholeProgramFileInfoOrder() const {
+        wholeProgramFileInfoOrderInternal(false);
+    }
+
+    void wholeProgramFileInfoOrderRelativePaths() const {
+        wholeProgramFileInfoOrderInternal(true);
     }
 
     void wholeProgramCtuInfoOrder() const

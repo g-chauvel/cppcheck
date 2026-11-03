@@ -166,6 +166,10 @@ namespace {
             return mCtuInfo;
         }
 
+        const std::list<std::pair<std::string, std::string>>& getFileInfo() const {
+            return mFileInfo;
+        }
+
         void readActiveCheckers() {
             if (mCheckersFile.empty())
                 return;
@@ -232,6 +236,11 @@ namespace {
          * CTU information of the addons (file0 and summary)
          */
         std::list<std::pair<std::string, std::string>> mCtuInfo;
+
+        /**
+         * File info (file0 and xml) for the whole program analysis without build dir
+         */
+        std::list<std::pair<std::string, std::string>> mFileInfo;
 
         /**
          * SARIF report generator
@@ -475,7 +484,7 @@ int CppCheckExecutor::check_internal(const Settings& settings, Suppressions& sup
     }
 
     // TODO: is this run again instead of using previously cached results?
-    returnValue |= cppcheck.analyseWholeProgram(settings.buildDir, mFiles, mFileSettings, stdLogger.getCtuInfo());
+    returnValue |= cppcheck.analyseWholeProgram(settings.buildDir, mFiles, mFileSettings, stdLogger.getCtuInfo(), stdLogger.getFileInfo());
 
     if ((settings.severity.isEnabled(Severity::information) || settings.checkConfiguration) && !supprs.nomsg.getSuppressions().empty()) {
         const bool err = reportUnmatchedSuppressions(settings, supprs.nomsg, mFiles, mFileSettings, stdLogger);
@@ -641,6 +650,11 @@ void StdLogger::reportErr(const ErrorMessage &msg)
 
     if (msg.severity == Severity::internal && msg.id == "ctuinfo") {
         mCtuInfo.emplace_back(msg.file0, msg.shortMessage());
+        return;
+    }
+
+    if (msg.severity == Severity::internal && msg.id == "fileinfo") {
+        mFileInfo.emplace_back(msg.file0, msg.shortMessage());
         return;
     }
 

@@ -44,6 +44,7 @@
 #include "utils.h"
 #include "valueflow.h"
 #include "version.h"
+#include "xml.h"
 
 #ifdef HAVE_RULES
 #include "regex.h"
@@ -1431,30 +1432,43 @@ void CppCheck::checkNormalTokens(const Tokenizer &tokenizer, AnalyzerInformation
         return;
     }
 
-    if (mSettings.useSingleJob() || analyzerInformation) {
-        // Analyse the tokens..
-        {
-            const CTU::FileInfo * const fi1 = CTU::getFileInfo(tokenizer);
-            if (analyzerInformation)
-                analyzerInformation->setFileInfo("ctu", fi1->toString());
-            if (mSettings.useSingleJob())
-                mFileInfo.push_back(fi1);
-            else
-                delete fi1;
-        }
+    // without build dir the file info of the jobs is passed to the whole program analysis through the logger
+    const bool reportFileInfo = !mSettings.useSingleJob() && mSettings.buildDir.empty();
+    std::string reportedFileInfo;
+    const auto storeFileInfo = [&](const std::string& check, const std::string& fileInfo) {
+        if (analyzerInformation)
+            analyzerInformation->setFileInfo(check, fileInfo);
+        else if (reportFileInfo && !fileInfo.empty())
+            reportedFileInfo += "<FileInfo check=\"" + check + "\">" + fileInfo + "</FileInfo>";
+    };
 
-        if (!doUnusedFunctionOnly) {
-            for (const Check * const c : CheckInstances::get()) {
-                if (const Check::FileInfo * const fi = c->getFileInfo(tokenizer, mSettings, currentConfig)) {
-                    if (analyzerInformation)
-                        analyzerInformation->setFileInfo(c->name(), fi->toString());
-                    if (mSettings.useSingleJob())
-                        mFileInfo.push_back(fi);
-                    else
-                        delete fi;
-                }
+    // Analyse the tokens..
+    {
+        const CTU::FileInfo * const fi1 = CTU::getFileInfo(tokenizer);
+        storeFileInfo("ctu", fi1->toString());
+        if (mSettings.useSingleJob())
+            mFileInfo.push_back(fi1);
+        else
+            delete fi1;
+    }
+
+    if (!doUnusedFunctionOnly) {
+        for (const Check * const c : CheckInstances::get()) {
+            if (const Check::FileInfo * const fi = c->getFileInfo(tokenizer, mSettings, currentConfig)) {
+                storeFileInfo(c->name(), fi->toString());
+                if (mSettings.useSingleJob())
+                    mFileInfo.push_back(fi);
+                else
+                    delete fi;
             }
         }
+    }
+
+    if (!reportedFileInfo.empty()) {
+        // the message has to be a single line
+        std::replace(reportedFileInfo.begin(), reportedFileInfo.end(), '\n', ' ');
+        const ErrorMessage errmsg({}, tokenizer.list.getFiles()[0], Severity::internal, reportedFileInfo, "fileinfo", Certainty::normal);
+        mErrorLogger.reportErr(errmsg);
     }
 
     if (mSettings.checks.isEnabled(Checks::unusedFunction) && analyzerInformation) {
@@ -1683,17 +1697,22 @@ void CppCheck::executeAddons(const std::vector<std::string>& files, const std::s
 }
 
 // the jobs report in any order, sort by the order of the files to get the same results as with -j1
+// with basePaths the reported file0 is relative, see TokenList::createTokens()
 static std::vector<const std::pair<std::string, std::string>*> sortByFiles(const std::list<std::pair<std::string, std::string>>& reported,
                                                                             const std::list<FileWithDetails> &files,
-                                                                            const std::list<FileSettings>& fileSettings)
+                                                                            const std::list<FileSettings>& fileSettings,
+                                                                            const std::vector<std::string>* basePaths)
 {
+    const auto file0Of = [basePaths](const std::string &path) {
+        return basePaths ? Path::getRelativePath(path, *basePaths) : path;
+    };
     std::map<std::string, std::size_t> fileIndex;
     std::size_t index = 0;
-    std::transform(files.cbegin(), files.cend(), std::inserter(fileIndex, fileIndex.end()), [&index](const FileWithDetails &f) {
-        return std::make_pair(f.spath(), index++);
+    std::transform(files.cbegin(), files.cend(), std::inserter(fileIndex, fileIndex.end()), [&index, &file0Of](const FileWithDetails &f) {
+        return std::make_pair(file0Of(f.spath()), index++);
     });
-    std::transform(fileSettings.cbegin(), fileSettings.cend(), std::inserter(fileIndex, fileIndex.end()), [&index](const FileSettings &fs) {
-        return std::make_pair(fs.file.spath(), index++);
+    std::transform(fileSettings.cbegin(), fileSettings.cend(), std::inserter(fileIndex, fileIndex.end()), [&index, &file0Of](const FileSettings &fs) {
+        return std::make_pair(file0Of(fs.file.spath()), index++);
     });
     using Reported = std::pair<std::size_t, const std::pair<std::string, std::string>*>;
     std::vector<Reported> sorted;
@@ -1721,7 +1740,7 @@ void CppCheck::executeAddonsWholeProgram(const std::list<FileWithDetails> &files
         FilesDeleter filesDeleter;
         filesDeleter.addFile(fileName);
         std::ofstream fout(fileName);
-        for (const std::pair<std::string, std::string>* info : sortByFiles(ctuInfo, files, fileSettings))
+        for (const std::pair<std::string, std::string>* info : sortByFiles(ctuInfo, files, fileSettings, nullptr))
             fout << info->second << '\n';
         fout.close();
         executeAddons({std::move(fileName)}, "");
@@ -1928,7 +1947,7 @@ bool CppCheck::analyseWholeProgram()
     return errors && (mLogger->exitcode() > 0);
 }
 
-unsigned int CppCheck::analyseWholeProgram(const std::string &buildDir, const std::list<FileWithDetails> &files, const std::list<FileSettings>& fileSettings, const std::list<std::pair<std::string, std::string>>& ctuInfo)
+unsigned int CppCheck::analyseWholeProgram(const std::string &buildDir, const std::list<FileWithDetails> &files, const std::list<FileSettings>& fileSettings, const std::list<std::pair<std::string, std::string>>& ctuInfo, const std::list<std::pair<std::string, std::string>>& fileInfo)
 {
     if (mSettings.checks.isEnabled(Checks::unusedFunction))
         CheckUnusedFunctions::analyseWholeProgram(mSettings, mErrorLogger, buildDir);
@@ -1944,21 +1963,40 @@ unsigned int CppCheck::analyseWholeProgram(const std::string &buildDir, const st
     std::list<const Check::FileInfo*> fileInfoList;
     CTU::FileInfo ctuFileInfo;
 
-    const auto handler = [&fileInfoList, &ctuFileInfo](const char* checkattr, const tinyxml2::XMLElement* e, const AnalyzerInformation::Info& filesTxtInfo) {
+    const auto handler = [&fileInfoList, &ctuFileInfo](const char* checkattr, const tinyxml2::XMLElement* e, const std::string& file0) {
         if (std::strcmp(checkattr, "ctu") == 0) {
             ctuFileInfo.loadFromXml(e);
             return;
         }
         for (const Check *check : CheckInstances::get()) {
             if (checkattr == check->name()) {
-                if (const Check::FileInfo* fi = check->loadFileInfoFromXml(e, filesTxtInfo.sourceFile)) {
+                if (const Check::FileInfo* fi = check->loadFileInfoFromXml(e, file0)) {
                     fileInfoList.push_back(fi);
                 }
             }
         }
     };
 
-    const std::string err = AnalyzerInformation::processFilesTxt(buildDir, handler, mSettings.debugainfo);
+    std::string err;
+    if (!buildDir.empty()) {
+        err = AnalyzerInformation::processFilesTxt(buildDir, [&handler](const char* checkattr, const tinyxml2::XMLElement* e, const AnalyzerInformation::Info& filesTxtInfo) {
+            handler(checkattr, e, filesTxtInfo.sourceFile);
+        }, mSettings.debugainfo);
+    } else if (!fileInfo.empty()) {
+        // file info reported by the jobs, see checkNormalTokens()
+        for (const std::pair<std::string, std::string>* info : sortByFiles(fileInfo, files, fileSettings, mSettings.relativePaths ? &mSettings.basePaths : nullptr)) {
+            const std::string& file0 = info->first;
+            tinyxml2::XMLDocument doc;
+            if (doc.Parse(("<fileinfo>" + info->second + "</fileinfo>").c_str()) != tinyxml2::XML_SUCCESS) {
+                err = "failed to parse file info of '" + file0 + "'";
+                break;
+            }
+            for (const tinyxml2::XMLElement *e = doc.FirstChildElement()->FirstChildElement("FileInfo"); e; e = e->NextSiblingElement("FileInfo")) {
+                if (const char *checkattr = e->Attribute("check"))
+                    handler(checkattr, e, file0);
+            }
+        }
+    }
     if (!err.empty()) {
         const ErrorMessage errmsg({}, "", Severity::error, err, "internalError", Certainty::normal);
         mErrorLogger.reportErr(errmsg);
