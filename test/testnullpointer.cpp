@@ -26,9 +26,11 @@
 #include "settings.h"
 #include "standards.h"
 #include "token.h"
+#include "xml.h"
 
 #include <cstddef>
 #include <list>
+#include <memory>
 #include <string>
 
 class TestNullPointer : public TestFixture {
@@ -183,6 +185,7 @@ private:
         TEST_CASE(isPointerDeRefFunctionDecl);
 
         TEST_CASE(ctuTest);
+        TEST_CASE(ctuXml);
     }
 
     struct CheckOptions
@@ -5088,6 +5091,25 @@ private:
             "    g(x);\n"
             "}\n");
         ASSERT_EQUALS("", errout_str());
+    }
+
+    void ctuXml() {
+        // the ctu info is read back from xml when a build dir is used
+        SimpleTokenizer tokenizer(settings, *this);
+        ASSERT(tokenizer.tokenize("void use(int *p) { a = *p + 3; }\n"
+                                  "void call(int x, int *p) { x++; use(p); }\n"
+                                  "int main() {\n"
+                                  "  call(4,0);\n"
+                                  "}\n"));
+        const std::unique_ptr<const CTU::FileInfo> fi1(CTU::getFileInfo(tokenizer));
+        ASSERT_EQUALS(1, fi1->nestedCalls.size());
+
+        tinyxml2::XMLDocument doc;
+        ASSERT_EQUALS(tinyxml2::XML_SUCCESS, doc.Parse(("<FileInfo>" + fi1->toString() + "</FileInfo>").c_str()));
+        CTU::FileInfo fi2;
+        fi2.loadFromXml(doc.FirstChildElement());
+        ASSERT_EQUALS(1, fi2.nestedCalls.size());
+        ASSERT_EQUALS(fi1->toString(), fi2.toString());
     }
 };
 
