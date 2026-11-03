@@ -192,7 +192,9 @@ def test_read_ctu_info_line(checker):
     ('MisraTypedefInfo', 203, False),
     ('MisraTypedefInfo', 203, True),
     ('MisraTagName', 204, False),
-    ('MisraTagName', 204, True)
+    ('MisraTagName', 204, True),
+    ('MisraMacro', 205, False),
+    ('MisraMacro', 205, True)
 ])
 def test_ctu_unused_declaration(checker, tmp_path, summary, rule, used_first):
     # The same name declared in two files, unused in a.c and used in b.c
