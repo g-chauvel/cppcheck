@@ -2364,9 +2364,20 @@ def test_builddir_hash_addon(tmp_path):
     with open(addon_script, 'wt') as f:
         f.write('# v1\n')
 
+    rule_texts = tmp_path / 'rule texts.txt'
+    with open(rule_texts, 'wt') as f:
+        f.write('v1\n')
+
+    extra_file = tmp_path / 'extra file.txt'
+    with open(extra_file, 'wt') as f:
+        f.write('v1\n')
+
     addon_file = tmp_path / 'addon1.json'
     with open(addon_file, 'wt') as f:
-        f.write(json.dumps({'script': str(addon_script)}))
+        f.write(json.dumps({
+            'script': str(addon_script),
+            'args': ['"--rule-texts={}"'.format(rule_texts), '--extra="{}"'.format(extra_file)]
+        }))
 
     build_dir = tmp_path / 'b1'
     os.mkdir(build_dir)
@@ -2390,7 +2401,7 @@ def test_builddir_hash_addon(tmp_path):
     assert get_hash() == hash_1
 
     hashes = [hash_1]
-    for changed_file in (addon_script, addon_file):
+    for changed_file in (addon_script, rule_texts, extra_file, addon_file):
         with open(changed_file, 'a') as f:
             f.write('\n')
         hashes.append(get_hash())

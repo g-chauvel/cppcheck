@@ -103,6 +103,8 @@ private:
         TEST_CASE(premiumResultsCache);
         TEST_CASE(addonContentResultsCache);
         TEST_CASE(addonConfigResultsCache);
+        TEST_CASE(addonArgsFileResultsCache);
+        TEST_CASE(addonArgsQuotedFileResultsCache);
         TEST_CASE(purgedConfiguration);
         TEST_CASE(recheckInclude);
     }
@@ -663,6 +665,22 @@ private:
         AddonInfo addon;
         addon.jsonFile = addon_config.path();
         checkAddonContentInvalidatesHash(addon, addon_config);
+    }
+
+    void addonArgsFileResultsCache() const {
+        // file referenced in args (--rule-texts)
+        ScopedFile rule_texts("testrules.txt", "rule v1\n");
+        AddonInfo addon;
+        addon.args = "--rule-texts=" + rule_texts.path();
+        checkAddonContentInvalidatesHash(addon, rule_texts);
+    }
+
+    void addonArgsQuotedFileResultsCache() const {
+        // quoted file name with a space in args, the shell running the addon removes the quotes
+        ScopedFile rule_texts("test rules.txt", "rule v1\n");
+        AddonInfo addon;
+        addon.args = "--rule-texts=\"" + rule_texts.path() + "\"";
+        checkAddonContentInvalidatesHash(addon, rule_texts);
     }
 
     void purgedConfiguration() const

@@ -25,6 +25,7 @@
 #include <iostream>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "json.h"
 
@@ -220,6 +221,21 @@ std::string AddonInfo::getAddonInfo(const std::string &fileName, const std::stri
     return parseAddonInfo(*this, json, fileName, exename);
 }
 
+// split the args like the shell running the addon, a double quote starts or ends a quoted part and is removed
+static std::vector<std::string> splitArgs(const std::string &args) {
+    std::vector<std::string> ret(1);
+    bool quoted = false;
+    for (const char c : args) {
+        if (c == '\"')
+            quoted = !quoted;
+        else if (c == ' ' && !quoted)
+            ret.emplace_back();
+        else
+            ret.back() += c;
+    }
+    return ret;
+}
+
 void AddonInfo::initContentHash() {
     contentHash.clear();
     if (!jsonFile.empty())
@@ -228,4 +244,13 @@ void AddonInfo::initContentHash() {
         contentHash += hashFileContent(scriptFile);
     if (!executable.empty())
         contentHash += hashFileContent(executable);
+    // files referenced as OPTION=FILE in args, e.g. --rule-texts=FILE
+    for (const std::string &arg : splitArgs(args)) {
+        const std::string::size_type eq = arg.find('=');
+        if (eq == std::string::npos)
+            continue;
+        const std::string path = arg.substr(eq + 1);
+        if (!path.empty() && Path::isFile(path))
+            contentHash += hashFileContent(path);
+    }
 }
