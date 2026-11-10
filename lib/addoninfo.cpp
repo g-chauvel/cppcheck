@@ -25,6 +25,7 @@
 #include <iostream>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "json.h"
 
@@ -209,6 +210,7 @@ std::string AddonInfo::getAddonInfo(const std::string &fileName, const std::stri
     std::ifstream fin(fileName);
     if (!fin.is_open())
         return "Failed to open " + fileName;
+    jsonFile = Path::fromNativeSeparators(fileName);
     if (name.empty()) {
         name = Path::fromNativeSeparators(fileName);
         if (name.find('/') != std::string::npos)
@@ -217,4 +219,38 @@ std::string AddonInfo::getAddonInfo(const std::string &fileName, const std::stri
     picojson::value json;
     fin >> json;
     return parseAddonInfo(*this, json, fileName, exename);
+}
+
+// split the args as the shell running the addon does
+static std::vector<std::string> splitArgs(const std::string &args) {
+    std::vector<std::string> ret(1);
+    bool quoted = false;
+    for (const char c : args) {
+        if (c == '\"')
+            quoted = !quoted;
+        else if (c == ' ' && !quoted)
+            ret.emplace_back();
+        else
+            ret.back() += c;
+    }
+    return ret;
+}
+
+void AddonInfo::initContentHash() {
+    contentHash.clear();
+    if (!jsonFile.empty())
+        contentHash += hashFileContent(jsonFile);
+    if (!scriptFile.empty())
+        contentHash += hashFileContent(scriptFile);
+    if (!executable.empty())
+        contentHash += hashFileContent(executable);
+    // files referenced as OPTION=FILE in args, e.g. --rule-texts=FILE
+    for (const std::string &arg : splitArgs(args)) {
+        const std::string::size_type pos = arg.find('=');
+        if (pos == std::string::npos)
+            continue;
+        const std::string path = arg.substr(pos + 1);
+        if (Path::isFile(path))
+            contentHash += hashFileContent(path);
+    }
 }
