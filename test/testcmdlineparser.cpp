@@ -537,6 +537,13 @@ private:
         TEST_CASE(cppcheckBuildDirMultiple);
         TEST_CASE(noCppcheckBuildDir);
         TEST_CASE(noCppcheckBuildDir2);
+        TEST_CASE(cppcheckBuildDirLibraryFile);
+        TEST_CASE(cppcheckBuildDirLibraryName);
+        TEST_CASE(cppcheckBuildDirPlatformFile);
+#ifdef HAVE_RULES
+        TEST_CASE(cppcheckBuildDirRuleFile);
+#endif
+        TEST_CASE(noCppcheckBuildDirLibraryFile);
 
         TEST_CASE(invalidCppcheckCfg);
 
@@ -3753,6 +3760,75 @@ private:
         const char * const argv[] = {"cppcheck", "--cppcheck-build-dir=b1", "--no-cppcheck-build-dir", "file.cpp"};
         ASSERT_EQUALS_ENUM(CmdLineParser::Result::Success, parseFromArgs(argv));
         ASSERT(settings->buildDir.empty());
+    }
+
+    void cppcheckBuildDirLibraryFile() {
+        REDIRECT;
+        ScopedFile file("test.cfg", "<?xml version=\"1.0\"?>\n<def format=\"2\"/>\n");
+        const char * const argv[] = {"cppcheck", "--cppcheck-build-dir=.", "--library=test.cfg", "file.cpp"};
+        ASSERT_EQUALS_ENUM(CmdLineParser::Result::Success, parseFromArgs(argv));
+        ASSERT_EQUALS(hashFileContent("test.cfg"), settings->configFilesHash);
+    }
+
+    void cppcheckBuildDirLibraryName() {
+        REDIRECT;
+        const char * const argv[] = {"cppcheck", "--cppcheck-build-dir=.", "--library=posix", "file.cpp"};
+        ASSERT_EQUALS_ENUM(CmdLineParser::Result::Success, parseFromArgs(argv));
+        ASSERT(settings->configFilesHash.empty());
+    }
+
+    void cppcheckBuildDirPlatformFile() {
+        REDIRECT;
+        ScopedFile file("test-platform.xml",
+                        "<?xml version=\"1.0\"?>\n"
+                        "<platform>\n"
+                        "  <char_bit>8</char_bit>\n"
+                        "  <default-sign>unsigned</default-sign>\n"
+                        "  <sizeof>\n"
+                        "    <bool>1</bool>\n"
+                        "    <short>2</short>\n"
+                        "    <int>2</int>\n"
+                        "    <long>4</long>\n"
+                        "    <long-long>8</long-long>\n"
+                        "    <float>4</float>\n"
+                        "    <double>4</double>\n"
+                        "    <long-double>4</long-double>\n"
+                        "    <pointer>2</pointer>\n"
+                        "    <size_t>2</size_t>\n"
+                        "    <wchar_t>2</wchar_t>\n"
+                        "  </sizeof>\n"
+                        "</platform>\n");
+        const char * const argv[] = {"cppcheck", "--cppcheck-build-dir=.", "--platform=test-platform.xml", "file.cpp"};
+        ASSERT_EQUALS_ENUM(CmdLineParser::Result::Success, parseFromArgs(argv));
+        ASSERT_EQUALS(Platform::Type::File, settings->platform.type);
+        ASSERT_EQUALS(hashFileContent("test-platform.xml"), settings->configFilesHash);
+    }
+
+#ifdef HAVE_RULES
+    void cppcheckBuildDirRuleFile() {
+        REDIRECT;
+        ScopedFile file("rule.xml",
+                        "<rule>\n"
+                        "<tokenlist>define</tokenlist>\n"
+                        "<pattern>.+</pattern>\n"
+                        "<message>\n"
+                        "<severity>error</severity>\n"
+                        "<id>ruleId</id>\n"
+                        "<summary>ruleSummary</summary>\n"
+                        "</message>\n"
+                        "</rule>\n");
+        const char * const argv[] = {"cppcheck", "--cppcheck-build-dir=.", "--rule-file=rule.xml", "file.cpp"};
+        ASSERT_EQUALS_ENUM(CmdLineParser::Result::Success, parseFromArgs(argv));
+        ASSERT_EQUALS(hashFileContent("rule.xml"), settings->configFilesHash);
+    }
+#endif
+
+    void noCppcheckBuildDirLibraryFile() {
+        REDIRECT;
+        ScopedFile file("test.cfg", "<?xml version=\"1.0\"?>\n<def format=\"2\"/>\n");
+        const char * const argv[] = {"cppcheck", "--library=test.cfg", "file.cpp"};
+        ASSERT_EQUALS_ENUM(CmdLineParser::Result::Success, parseFromArgs(argv));
+        ASSERT(settings->configFilesHash.empty());
     }
 
     void invalidCppcheckCfg() {

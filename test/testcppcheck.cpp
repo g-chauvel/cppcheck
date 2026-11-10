@@ -105,6 +105,7 @@ private:
         TEST_CASE(addonConfigResultsCache);
         TEST_CASE(addonArgsFileResultsCache);
         TEST_CASE(addonArgsQuotedFileResultsCache);
+        TEST_CASE(configFilesResultsCache);
         TEST_CASE(purgedConfiguration);
         TEST_CASE(recheckInclude);
     }
@@ -681,6 +682,31 @@ private:
         AddonInfo addon;
         addon.args = "--rule-texts=\"" + rule_texts.path() + "\"";
         checkAddonContentInvalidatesHash(addon, rule_texts);
+    }
+
+    void configFilesResultsCache() const {
+        // hashes of the files given with --library, --platform and --rule-file
+        Settings settings;
+        Suppressions supprs;
+        ErrorLogger2 errorLogger;
+
+        std::vector<std::string> files;
+
+        const char code[] = "void f();\nint x;\n";
+        simplecpp::TokenList tokens(code, files, "m1.c");
+
+        Preprocessor preprocessor(tokens, settings, errorLogger, Standards::Language::C);
+        ASSERT(preprocessor.loadAllIncludes(files));
+
+        settings.configFilesHash = "1;";
+        CppCheck check(settings, supprs, errorLogger, nullptr, false, {});
+        const size_t hash1 = check.calculateHash(preprocessor);
+
+        settings.configFilesHash = "2;";
+        const size_t hash2 = check.calculateHash(preprocessor);
+
+        // cppcheck-suppress knownConditionTrueFalse
+        ASSERT(hash1 != hash2);
     }
 
     void purgedConfiguration() const

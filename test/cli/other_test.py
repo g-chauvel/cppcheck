@@ -2409,6 +2409,68 @@ def test_builddir_hash_addon(tmp_path):
     assert len(set(hashes)) == len(hashes)
 
 
+def test_builddir_hash_config_files(tmp_path):
+    test_file = tmp_path / 'test.c'
+    with open(test_file, 'wt') as f:
+        f.write('void f() {}\n')
+
+    library_file = tmp_path / 'test.cfg'
+    with open(library_file, 'wt') as f:
+        f.write('<?xml version="1.0"?>\n<def format="2"/>\n')
+
+    platform_file = tmp_path / 'platform.xml'
+    with open(platform_file, 'wt') as f:
+        f.write("""<?xml version="1.0"?>
+<platform>
+  <char_bit>8</char_bit>
+  <default-sign>unsigned</default-sign>
+  <sizeof>
+    <bool>1</bool>
+    <short>2</short>
+    <int>2</int>
+    <long>4</long>
+    <long-long>8</long-long>
+    <float>4</float>
+    <double>4</double>
+    <long-double>4</long-double>
+    <pointer>2</pointer>
+    <size_t>2</size_t>
+    <wchar_t>2</wchar_t>
+  </sizeof>
+</platform>
+""")
+
+    build_dir = tmp_path / 'b1'
+    os.mkdir(build_dir)
+
+    args = [
+        '--library={}'.format(library_file),
+        '--platform={}'.format(platform_file),
+        '--cppcheck-build-dir={}'.format(build_dir),
+        str(test_file)
+    ]
+
+    cache_file = build_dir / 'test.a1'
+
+    def get_hash():
+        exitcode, stdout, stderr = cppcheck(args)
+        assert exitcode == 0, stdout
+        assert stderr == ''
+        root = ElementTree.fromstring(cache_file.read_text())
+        return root.findtext('hash')
+
+    hash_1 = get_hash()
+    assert get_hash() == hash_1
+
+    hashes = [hash_1]
+    for changed_file in (library_file, platform_file):
+        with open(changed_file, 'a') as f:
+            f.write('\n')
+        hashes.append(get_hash())
+
+    assert len(set(hashes)) == len(hashes)
+
+
 def test_def_undef(tmp_path):
     test_file = tmp_path / 'test.c'
     with open(test_file, 'wt') as f:
