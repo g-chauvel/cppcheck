@@ -890,6 +890,7 @@ std::size_t CppCheck::calculateHash(const Preprocessor& preprocessor, const std:
         toolinfo << a.args;
         toolinfo << a.contentHash;
     }
+    toolinfo << mSettings.configFilesHash;
     toolinfo << mSettings.premiumArgs;
     // TODO: do we need to add more options?
     mSuppressions.nomsg.dump(toolinfo, filePath);

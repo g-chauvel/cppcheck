@@ -415,6 +415,8 @@ CmdLineParser::Result CmdLineParser::parseFromArgs(int argc, const char* const a
     std::string platform;
     char defaultSign = '\0';
 
+    std::vector<std::string> configFiles;
+
     std::vector<std::string> lookupPaths{
         Path::getCurrentPath(), // TODO: do we want to look in CWD?
         Path::getPathFromFilename(mSettings.exename),
@@ -976,6 +978,8 @@ CmdLineParser::Result CmdLineParser::parseFromArgs(int argc, const char* const a
                     mLogger.printError("empty library specified.");
                     return Result::Fail;
                 }
+                if (Path::isFile(l))
+                    configFiles.push_back(l);
                 mSettings.libraries.emplace_back(std::move(l));
             }
         }
@@ -1090,6 +1094,8 @@ CmdLineParser::Result CmdLineParser::parseFromArgs(int argc, const char* const a
                 mLogger.printError("empty platform specified.");
                 return Result::Fail;
             }
+            if (Path::isFile(p))
+                configFiles.push_back(p);
             platform = std::move(p);
         }
 
@@ -1344,6 +1350,7 @@ CmdLineParser::Result CmdLineParser::parseFromArgs(int argc, const char* const a
             tinyxml2::XMLDocument doc;
             const tinyxml2::XMLError err = doc.LoadFile(ruleFile.c_str());
             if (err == tinyxml2::XML_SUCCESS) {
+                configFiles.push_back(ruleFile);
                 const tinyxml2::XMLElement *node = doc.FirstChildElement();
                 // check if it is a single or multi rule configuration
                 if (node && strcmp(node->Value(), "rules") == 0)
@@ -1704,6 +1711,11 @@ CmdLineParser::Result CmdLineParser::parseFromArgs(int argc, const char* const a
     if (!mSettings.buildDir.empty() && !Path::isDirectory(mSettings.buildDir)) {
         mLogger.printError("Directory '" + mSettings.buildDir + "' specified by --cppcheck-build-dir argument has to be existent.");
         return Result::Fail;
+    }
+
+    if (!mSettings.buildDir.empty()) {
+        for (const std::string &f : configFiles)
+            mSettings.configFilesHash += hashFileContent(f);
     }
 
     // Print error only if we have "real" command and expect files

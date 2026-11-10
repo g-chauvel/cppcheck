@@ -151,6 +151,9 @@ public:
     /** @brief --cppcheck-build-dir. Always uses / as path separator. No trailing path separator. */
     std::string buildDir;
 
+    /** @brief Hashes of the files given with --library, --platform and --rule-file, only with a build dir */
+    std::string configFilesHash;
+
     /** Is the 'configuration checking' wanted? */
     bool checkConfiguration{};
 
