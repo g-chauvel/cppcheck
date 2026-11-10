@@ -2355,6 +2355,49 @@ void f(bool b)
     assert hash_1 != hash_2
 
 
+def test_builddir_hash_addon(tmp_path):
+    test_file = tmp_path / 'test.c'
+    with open(test_file, 'wt') as f:
+        f.write('void f() {}\n')
+
+    addon_script = tmp_path / 'addon1.py'
+    with open(addon_script, 'wt') as f:
+        f.write('# v1\n')
+
+    addon_file = tmp_path / 'addon1.json'
+    with open(addon_file, 'wt') as f:
+        f.write(json.dumps({'script': str(addon_script)}))
+
+    build_dir = tmp_path / 'b1'
+    os.mkdir(build_dir)
+
+    args = [
+        '--addon={}'.format(addon_file),
+        '--cppcheck-build-dir={}'.format(build_dir),
+        str(test_file)
+    ]
+
+    cache_file = build_dir / 'test.a1'
+
+    def get_hash():
+        exitcode, stdout, stderr = cppcheck(args)
+        assert exitcode == 0, stdout
+        assert stderr == ''
+        root = ElementTree.fromstring(cache_file.read_text())
+        return root.findtext('hash')
+
+    hash_1 = get_hash()
+    assert get_hash() == hash_1
+
+    hashes = [hash_1]
+    for changed_file in (addon_script, addon_file):
+        with open(changed_file, 'a') as f:
+            f.write('\n')
+        hashes.append(get_hash())
+
+    assert len(set(hashes)) == len(hashes)
+
+
 def test_def_undef(tmp_path):
     test_file = tmp_path / 'test.c'
     with open(test_file, 'wt') as f:

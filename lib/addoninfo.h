@@ -26,6 +26,7 @@
 
 struct CPPCHECKLIB AddonInfo {
     std::string name;
+    std::string jsonFile;   // addon json file
     std::string scriptFile; // addon script
     std::string executable; // addon executable
     std::string args;       // special extra arguments
@@ -34,7 +35,12 @@ struct CPPCHECKLIB AddonInfo {
     std::string runScript;
     std::map<std::string, std::string> checkers; // checker name and its requirement
 
+    std::string contentHash; // hashes of the json, script and executable files
+
     std::string getAddonInfo(const std::string &fileName, const std::string &exename, bool debug = false);
+
+    // call after getAddonInfo()
+    void initContentHash();
 };
 
 #endif // addonInfoH

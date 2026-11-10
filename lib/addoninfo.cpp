@@ -209,6 +209,7 @@ std::string AddonInfo::getAddonInfo(const std::string &fileName, const std::stri
     std::ifstream fin(fileName);
     if (!fin.is_open())
         return "Failed to open " + fileName;
+    jsonFile = Path::fromNativeSeparators(fileName);
     if (name.empty()) {
         name = Path::fromNativeSeparators(fileName);
         if (name.find('/') != std::string::npos)
@@ -217,4 +218,14 @@ std::string AddonInfo::getAddonInfo(const std::string &fileName, const std::stri
     picojson::value json;
     fin >> json;
     return parseAddonInfo(*this, json, fileName, exename);
+}
+
+void AddonInfo::initContentHash() {
+    contentHash.clear();
+    if (!jsonFile.empty())
+        contentHash += hashFileContent(jsonFile);
+    if (!scriptFile.empty())
+        contentHash += hashFileContent(scriptFile);
+    if (!executable.empty())
+        contentHash += hashFileContent(executable);
 }

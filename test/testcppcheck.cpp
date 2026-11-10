@@ -35,6 +35,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
+#include <fstream>
 #include <list>
 #include <string>
 #include <unordered_set>
@@ -100,6 +101,8 @@ private:
         TEST_CASE(getDumpFileContentsLibrary);
         TEST_CASE(checkPlistOutput);
         TEST_CASE(premiumResultsCache);
+        TEST_CASE(addonContentResultsCache);
+        TEST_CASE(addonConfigResultsCache);
         TEST_CASE(purgedConfiguration);
         TEST_CASE(recheckInclude);
     }
@@ -610,6 +613,56 @@ private:
 
         // cppcheck-suppress knownConditionTrueFalse
         ASSERT(hash1 != hash2);
+    }
+
+    // editing 'file' (an addon file referenced by 'addon') must change the cache hash
+    void checkAddonContentInvalidatesHash(AddonInfo addon, const ScopedFile& file) const
+    {
+        Settings settings;
+        Suppressions supprs;
+        ErrorLogger2 errorLogger;
+
+        std::vector<std::string> files;
+
+        const char code[] = "void f();\nint x;\n";
+        simplecpp::TokenList tokens(code, files, "m1.c");
+
+        Preprocessor preprocessor(tokens, settings, errorLogger, Standards::Language::C);
+        ASSERT(preprocessor.loadAllIncludes(files));
+
+        addon.name = "testaddon";
+        settings.addons.insert(addon.name);
+        settings.addonInfos.push_back(std::move(addon));
+        settings.addonInfos.back().initContentHash(); // as loadAddons() does
+
+        CppCheck check(settings, supprs, errorLogger, nullptr, false, {});
+        const std::size_t hash1 = check.calculateHash(preprocessor);
+
+        // unchanged content keeps the same hash
+        settings.addonInfos.back().initContentHash();
+        ASSERT_EQUALS(hash1, check.calculateHash(preprocessor));
+
+        // editing the file and reloading changes the hash
+        std::ofstream(file.path()) << "changed content\n";
+        settings.addonInfos.back().initContentHash();
+        // cppcheck-suppress knownConditionTrueFalse
+        ASSERT(hash1 != check.calculateHash(preprocessor));
+    }
+
+    void addonContentResultsCache() const {
+        // addon script
+        ScopedFile addon_script("testaddon.py", "# addon v1\n");
+        AddonInfo addon;
+        addon.scriptFile = addon_script.path();
+        checkAddonContentInvalidatesHash(addon, addon_script);
+    }
+
+    void addonConfigResultsCache() const {
+        // addon .json config
+        ScopedFile addon_config("testaddon.json", "{ \"script\": \"x.py\" }\n");
+        AddonInfo addon;
+        addon.jsonFile = addon_config.path();
+        checkAddonContentInvalidatesHash(addon, addon_config);
     }
 
     void purgedConfiguration() const
