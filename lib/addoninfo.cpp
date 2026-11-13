@@ -21,6 +21,7 @@
 #include "path.h"
 #include "utils.h"
 
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -28,6 +29,10 @@
 #include <vector>
 
 #include "json.h"
+
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 
 static std::string getFullPath(const std::string &fileName, const std::string &exename, bool debug = false) {
     if (debug)
@@ -236,14 +241,63 @@ static std::vector<std::string> splitArgs(const std::string &args) {
     return ret;
 }
 
+// find the file that is run for the executable, as the command processor (Windows) or the shell does
+static std::string findExecutable(const std::string &executable) {
+#ifdef _WIN32
+    const std::string::size_type slash = executable.find_last_of("/\\");
+    const std::string name = executable.substr(slash + 1);
+    std::vector<std::string> dirs;
+    if (slash != std::string::npos)
+        dirs.push_back(executable.substr(0, slash + 1));
+    else {
+        if (!std::getenv("NoDefaultCurrentDirectoryInExePath"))
+            dirs.emplace_back(".");
+        const char *path = std::getenv("PATH");
+        for (const std::string &dir : splitString(path ? path : "", ';')) {
+            if (!dir.empty())
+                dirs.push_back(dir);
+        }
+    }
+    std::vector<std::string> names;
+    const char *pathext = std::getenv("PATHEXT");
+    for (const std::string &ext : splitString((pathext && *pathext) ? pathext : ".COM;.EXE;.BAT;.CMD", ';')) {
+        if (ext.empty())
+            continue;
+        // the name itself is only tried when its extension is in PATHEXT
+        if (name.size() > ext.size() && caseInsensitiveStringCompare(name.substr(name.size() - ext.size()), ext) == 0)
+            names.insert(names.begin(), name);
+        names.push_back(name + ext);
+    }
+    for (const std::string &dir : dirs) {
+        for (const std::string &n : names) {
+            std::string p = Path::join(dir, n);
+            if (Path::isFile(p))
+                return p;
+        }
+    }
+#else
+    const char *path = std::getenv("PATH");
+    if (!path || !*path || executable.find('/') != std::string::npos)
+        return "";
+    for (const std::string &dir : splitString(path, ':')) {
+        std::string p = Path::join(dir, executable);
+        if (Path::isFile(p) && access(p.c_str(), X_OK) == 0)
+            return p;
+    }
+#endif
+    return "";
+}
+
 void AddonInfo::initContentHash() {
     contentHash.clear();
     if (!jsonFile.empty())
         contentHash += hashFileContent(jsonFile);
     if (!scriptFile.empty())
         contentHash += hashFileContent(scriptFile);
-    if (!executable.empty())
-        contentHash += hashFileContent(executable);
+    if (!executable.empty()) {
+        const std::string found = findExecutable(executable);
+        contentHash += hashFileContent(found.empty() ? executable : found);
+    }
     // files referenced as OPTION=FILE in args, e.g. --rule-texts=FILE
     for (const std::string &arg : splitArgs(args)) {
         const std::string::size_type eq = arg.find('=');

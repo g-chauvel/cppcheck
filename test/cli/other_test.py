@@ -2408,6 +2408,107 @@ def test_builddir_hash_addon(tmp_path):
     assert len(set(hashes)) == len(hashes)
 
 
+def test_builddir_hash_addon_executable_in_path(tmp_path):
+    test_file = tmp_path / 'test.c'
+    with open(test_file, 'wt') as f:
+        f.write('void f() {}\n')
+
+    # not run: no extension from PATHEXT (Windows), not executable
+    other_dir = tmp_path / 'other'
+    os.mkdir(other_dir)
+    other_file = other_dir / 'addon1'
+    with open(other_file, 'wt') as f:
+        f.write('v1\n')
+
+    bin_dir = tmp_path / 'bin'
+    os.mkdir(bin_dir)
+    if sys.platform == 'win32':
+        addon_exe = bin_dir / 'addon1.cmd'
+        with open(addon_exe, 'wt') as f:
+            f.write('@echo off\n')
+    else:
+        addon_exe = bin_dir / 'addon1'
+        with open(addon_exe, 'wt') as f:
+            f.write('#!/bin/sh\n')
+        os.chmod(addon_exe, 0o755)
+
+    addon_file = tmp_path / 'addon1.json'
+    with open(addon_file, 'wt') as f:
+        f.write(json.dumps({'executable': 'addon1'}))
+
+    build_dir = tmp_path / 'b1'
+    os.mkdir(build_dir)
+
+    args = [
+        '--addon={}'.format(addon_file),
+        '--cppcheck-build-dir={}'.format(build_dir),
+        str(test_file)
+    ]
+
+    env = os.environ.copy()
+    env['PATH'] = os.pathsep.join([str(other_dir), str(bin_dir), env['PATH']])
+
+    cache_file = build_dir / 'test.a1'
+
+    def get_hash():
+        exitcode, stdout, stderr = cppcheck(args, env=env)
+        assert exitcode == 0, stdout
+        assert stderr == ''
+        root = ElementTree.fromstring(cache_file.read_text())
+        return root.findtext('hash')
+
+    hash_1 = get_hash()
+    assert get_hash() == hash_1
+
+    with open(other_file, 'a') as f:
+        f.write('\n')
+    assert get_hash() == hash_1
+
+    with open(addon_exe, 'a') as f:
+        f.write('\n')
+    assert get_hash() != hash_1
+
+
+@pytest.mark.skipif(sys.platform != 'win32', reason='requires Windows')
+def test_builddir_hash_addon_executable_no_extension(tmp_path):
+    test_file = tmp_path / 'test.c'
+    with open(test_file, 'wt') as f:
+        f.write('void f() {}\n')
+
+    addon_exe = tmp_path / 'addon1.cmd'
+    with open(addon_exe, 'wt') as f:
+        f.write('@echo off\n')
+
+    addon_file = tmp_path / 'addon1.json'
+    with open(addon_file, 'wt') as f:
+        f.write(json.dumps({'executable': str(tmp_path / 'addon1')}))
+
+    build_dir = tmp_path / 'b1'
+    os.mkdir(build_dir)
+
+    args = [
+        '--addon={}'.format(addon_file),
+        '--cppcheck-build-dir={}'.format(build_dir),
+        str(test_file)
+    ]
+
+    cache_file = build_dir / 'test.a1'
+
+    def get_hash():
+        exitcode, stdout, stderr = cppcheck(args)
+        assert exitcode == 0, stdout
+        assert stderr == ''
+        root = ElementTree.fromstring(cache_file.read_text())
+        return root.findtext('hash')
+
+    hash_1 = get_hash()
+    assert get_hash() == hash_1
+
+    with open(addon_exe, 'a') as f:
+        f.write('\n')
+    assert get_hash() != hash_1
+
+
 def test_def_undef(tmp_path):
     test_file = tmp_path / 'test.c'
     with open(test_file, 'wt') as f:
