@@ -775,6 +775,13 @@ class TestSuppressions:
         supp = self.make_suppression(errorId='zerodiv', lineNumber='5')
         assert not supp.isMatch('a.c', '6', 'msg', 'zerodiv')
 
+    def test_line_suppression_this_and_next_line(self):
+        supp = self.make_suppression(errorId='zerodiv', lineNumber='5', thisAndNextLine='true')
+        assert supp.isMatch('a.c', '5', 'msg', 'zerodiv')
+        assert supp.isMatch('a.c', '6', 'msg', 'zerodiv')
+        assert not supp.isMatch('a.c', '4', 'msg', 'zerodiv')
+        assert not supp.isMatch('a.c', '7', 'msg', 'zerodiv')
+
     def test_wildcard_errorId(self):
         supp = self.make_suppression(errorId='*', lineNumber='5')
         assert supp.isMatch('a.c', '5', 'msg', 'anything')
